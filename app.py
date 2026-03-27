@@ -4,6 +4,7 @@ import traceback
 from datetime import datetime
 
 from flask import Flask, redirect, render_template_string, request, url_for
+from werkzeug.utils import secure_filename
 
 from gsheet_utils import append_to_sheet
 
@@ -397,7 +398,7 @@ TEMPLATE_FORM = r'''
             <div class="banner error">{{ save_error }}</div>
             {% endif %}
 
-            <form method="POST" action="{{ url_for('home') }}" novalidate>
+            <form method="POST" action="{{ url_for('home') }}" enctype="multipart/form-data" novalidate>
                 <div class="form-grid">
                     <div class="field {% if errors.get('nome_local') %}error{% endif %}">
                         <label for="nome_local">Nome do local *</label>
@@ -418,9 +419,23 @@ TEMPLATE_FORM = r'''
                     </div>
 
                     <div class="field {% if errors.get('cep') %}error{% endif %}">
-                        <label for="cep">CEP *</label>
-                        <input type="text" id="cep" name="cep" maxlength="9" inputmode="numeric" placeholder="00000-000" value="{{ form_data.get('cep', '') }}">
-                        {% if errors.get('cep') %}<span class="error-text">{{ errors.get('cep') }}</span>{% endif %}
+                            <!-- Campo de CEP removido -->
+                    </div>
+
+                    <div class="field full {% if errors.get('logo') %}error{% endif %}">
+                        <label for="logo">Logo do local *</label>
+                        <div style="display: flex; align-items: center; gap: 18px; flex-wrap: wrap;">
+                            <input type="file" id="logo" name="logo" accept="image/*" style="flex: none;" onchange="previewLogo(event)">
+                            <div id="logo-preview-container" style="min-width: 120px; min-height: 80px; display: flex; align-items: center; justify-content: center; border: 1px dashed #ccc; border-radius: 12px; background: #fafafa;">
+                                {% if form_data.get('logo') %}
+                                    <img id="logo-preview" src="/{{ form_data.get('logo') }}" alt="Prévia do logo" style="max-width: 120px; max-height: 80px; border-radius: 8px;">
+                                {% else %}
+                                    <span id="logo-preview-placeholder" style="color: #aaa; font-size: 0.95rem;">Prévia do logo</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="helper">Selecione a imagem do logo do local. O logo será exibido na ficha e pode ser colorido ou em preto e branco. <b>Capriche!</b></div>
+                        {% if errors.get('logo') %}<span class="error-text">{{ errors.get('logo') }}</span>{% endif %}
                     </div>
 
                     <div class="field {% if errors.get('cursos') %}error{% endif %}">
@@ -503,28 +518,42 @@ TEMPLATE_FORM = r'''
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const cepInput = document.getElementById('cep');
             const colorInput = document.getElementById('cor_ficha');
             const colorValue = document.getElementById('cor_ficha_valor');
             const ticketPreview = document.getElementById('ticket_preview');
-
-            function formatCep(value) {
-                const digits = (value || '').replace(/\D/g, '').slice(0, 8);
-                if (digits.length <= 5) {
-                    return digits;
-                }
-                return digits.slice(0, 5) + '-' + digits.slice(5);
-            }
-
-            cepInput.addEventListener('input', function(event) {
-                event.target.value = formatCep(event.target.value);
-            });
 
             colorInput.addEventListener('input', function(event) {
                 colorValue.textContent = event.target.value;
                 ticketPreview.style.setProperty('--ticket-color', event.target.value);
             });
         });
+
+        function previewLogo(event) {
+            const input = event.target;
+            const previewContainer = document.getElementById('logo-preview-container');
+            let preview = document.getElementById('logo-preview');
+            let placeholder = document.getElementById('logo-preview-placeholder');
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    if (!preview) {
+                        preview = document.createElement('img');
+                        preview.id = 'logo-preview';
+                        preview.style.maxWidth = '120px';
+                        preview.style.maxHeight = '80px';
+                        preview.style.borderRadius = '8px';
+                        previewContainer.innerHTML = '';
+                        previewContainer.appendChild(preview);
+                    }
+                    preview.src = e.target.result;
+                };
+                reader.readAsDataURL(input.files[0]);
+                if (placeholder) placeholder.style.display = 'none';
+            } else {
+                if (preview) preview.remove();
+                if (placeholder) placeholder.style.display = '';
+            }
+        }
     </script>
 </body>
 </html>
@@ -555,7 +584,6 @@ def get_default_form_data(source=None):
         "nome_local": "",
         "regiao": "",
         "endereco_completo": "",
-        "cep": "",
         "cursos": "",
         "local_turma": "",
         "horario": "",
@@ -565,6 +593,7 @@ def get_default_form_data(source=None):
         "data_inicio": "",
         "encerramento": "",
         "cor_ficha": "",
+        "logo": "",
     }
 
     if not source:
@@ -586,7 +615,6 @@ def validate_form_data(form_data):
         "nome_local": "Informe o nome do local.",
         "regiao": "Informe a região.",
         "endereco_completo": "Informe o endereço completo.",
-        "cep": "Informe o CEP.",
         "cursos": "Informe o curso.",
         "local_turma": "Informe o local da turma.",
         "horario": "Informe o horário.",
@@ -596,15 +624,17 @@ def validate_form_data(form_data):
         "data_inicio": "Informe a data de início.",
         "encerramento": "Informe o encerramento.",
         "cor_ficha": "Escolha a cor da ficha.",
+        "logo": "Selecione o logo do local.",
     }
+    # Validação do campo logo (opcional)
+    if form_data.get("logo_error"):
+        errors["logo"] = form_data["logo_error"]
 
     for field_name, message in required_messages.items():
         if not form_data[field_name]:
             errors[field_name] = message
 
-    cep = form_data["cep"]
-    if cep and not re.fullmatch(r"\d{5}-\d{3}", cep):
-        errors["cep"] = "Use o formato 00000-000."
+    # Campo de CEP removido
 
     vagas = form_data["vagas"]
     if vagas:
@@ -634,7 +664,6 @@ def build_sheet_row(form_data):
         form_data["nome_local"],
         form_data["regiao"],
         form_data["endereco_completo"],
-        form_data["cep"],
         form_data["cursos"],
         form_data["local_turma"],
         form_data["horario"],
@@ -644,6 +673,7 @@ def build_sheet_row(form_data):
         data_inicio,
         encerramento,
         form_data["cor_ficha"],
+        form_data.get("logo", ""),
     ]
 
 
@@ -664,6 +694,24 @@ def home():
         return render_form()
 
     form_data = get_default_form_data(request.form)
+
+    # Lida com upload do logo
+    logo_file = request.files.get("logo")
+    if logo_file and logo_file.filename:
+        filename = secure_filename(logo_file.filename)
+        ext = os.path.splitext(filename)[1].lower()
+        if ext not in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"]:
+            form_data["logo_error"] = "Apenas imagens são permitidas (png, jpg, jpeg, gif, bmp, webp)."
+        else:
+            logo_path = os.path.join("static", filename)
+            try:
+                logo_file.save(logo_path)
+                form_data["logo"] = logo_path
+            except Exception as e:
+                form_data["logo_error"] = "Erro ao salvar a imagem. Tente novamente."
+    else:
+        form_data["logo"] = ""
+
     errors = validate_form_data(form_data)
     if errors:
         return render_form(form_data=form_data, errors=errors)
