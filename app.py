@@ -160,21 +160,6 @@ TEMPLATE_FORM = r'''
                     <div class="helper">Liste um benefício por linha, começando com hífen (-).</div>
                     {% if errors.get('beneficios') %}<span class="error-text">{{ errors.get('beneficios') }}</span>{% endif %}
                 </div>
-                <div class="field full {% if errors.get('logo') %}error{% endif %}">
-                    <label for="logo">Logo do projeto</label>
-                    <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
-                        <input type="file" id="logo" name="logo" accept="image/*" onchange="previewLogo(event)">
-                        <div id="logo-preview-container" style="min-width:120px;min-height:80px;display:flex;align-items:center;justify-content:center;border:1px dashed #ccc;border-radius:12px;background:#fafafa;">
-                            {% if form_data.get('logo') %}
-                                <img id="logo-preview" src="/{{ form_data.get('logo') }}" alt="Prévia do logo" style="max-width:120px;max-height:80px;border-radius:8px;">
-                            {% else %}
-                                <span id="logo-preview-placeholder" style="color:#aaa;font-size:0.9rem;">Prévia do logo</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="helper">Opcional. Formatos aceitos: png, jpg, gif, webp.</div>
-                    {% if errors.get('logo') %}<span class="error-text">{{ errors.get('logo') }}</span>{% endif %}
-                </div>
                 <div class="field full {% if errors.get('cor_ficha') %}error{% endif %}">
                     <label>Cor da ficha *</label>
                     <div class="color-picker">
@@ -317,31 +302,6 @@ function renumber() {
     document.querySelectorAll('[data-turma]').forEach((el, i) => {
         el.querySelector('.turma-num').textContent = 'Turma ' + (i+1);
     });
-}
-
-function previewLogo(event) {
-    const input = event.target;
-    const container = document.getElementById('logo-preview-container');
-    let preview = document.getElementById('logo-preview');
-    let placeholder = document.getElementById('logo-preview-placeholder');
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            if (!preview) {
-                preview = document.createElement('img');
-                preview.id = 'logo-preview';
-                preview.style.cssText = 'max-width:120px;max-height:80px;border-radius:8px;';
-                container.innerHTML = '';
-                container.appendChild(preview);
-            }
-            preview.src = e.target.result;
-        };
-        reader.readAsDataURL(input.files[0]);
-        if (placeholder) placeholder.style.display = 'none';
-    } else {
-        if (preview) preview.remove();
-        if (placeholder) placeholder.style.display = '';
-    }
 }
 </script>
 </body>
@@ -563,49 +523,27 @@ def home():
 
     locais, turmas = parse_lists_from_request(request)
 
-    # Processa upload do logo do projeto
-    logo_path = ""
-    logo_error = ""
-    logo_file = request.files.get("logo")
-    if logo_file and logo_file.filename:
-        filename = secure_filename(logo_file.filename)
-        ext = os.path.splitext(filename)[1].lower()
-        if ext not in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"]:
-            logo_error = "Apenas imagens são permitidas (png, jpg, jpeg, gif, bmp, webp)."
-        else:
-            os.makedirs("static", exist_ok=True)
-            save_path = os.path.join("static", filename)
-            try:
-                logo_file.save(save_path)
-                logo_path = save_path
-            except Exception:
-                logo_error = "Erro ao salvar a imagem. Tente novamente."
-
     form_data = {
         "nome_projeto": request.form.get("nome_projeto", "").strip(),
         "titulo": request.form.get("titulo", "").strip(),
         "subtitulo": request.form.get("subtitulo", "").strip(),
         "beneficios": request.form.get("beneficios", "").strip(),
         "cor_ficha": request.form.get("cor_ficha", DEFAULT_COLOR).strip(),
-        "logo": logo_path,
         "locais": locais,
         "turmas": turmas,
     }
 
     errors = validate(form_data)
-    if logo_error:
-        errors["logo"] = logo_error
     if errors:
         return render_form(form_data=form_data, errors=errors)
 
     texto_formatado = build_formatted_text(form_data)
 
     # Monta a linha da planilha:
-    # Coluna A = nome do projeto, B = cor, C = logo, D = texto completo formatado
+    # Coluna A = nome do projeto, B = cor, C = texto completo formatado
     row = [
         form_data["nome_projeto"],
         form_data["cor_ficha"],
-        form_data.get("logo", ""),
         texto_formatado,
     ]
 
