@@ -10,20 +10,35 @@ from gsheet_utils import append_to_sheet
 
 
 DEFAULT_COLOR = "#0f766e"
-DATE_FIELDS = {"data_inicio", "encerramento"}
+
+COURSE_EMOJIS = {
+    "designer": "💅", "unha": "💅", "costura": "🧵", "corte": "✂️",
+    "recepcion": "🛎️", "logística": "📦", "logistica": "📦",
+    "administrativo": "📂", "cozinha": "🍳", "barbeiro": "💈",
+    "idoso": "👵", "eletric": "⚡", "inteligência": "🤖",
+    "marketing": "📱", "lazer": "🎈", "porteiro": "🔑", "portaria": "🔑",
+    "informática": "💻", "informatica": "💻",
+}
+
+def get_course_emoji(course_name):
+    lower = course_name.lower()
+    for key, emoji in COURSE_EMOJIS.items():
+        if key in lower:
+            return emoji
+    return "📚"
+
 
 TEMPLATE_FORM = r'''
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Cadastro de Cursos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulário de Inscrições</title>
     <style>
         :root {
             --bg: #f4efe7;
             --card: rgba(255, 252, 248, 0.94);
-            --card-strong: #fffaf4;
             --ink: #1f2933;
             --muted: #6b7280;
             --line: #eadfce;
@@ -35,526 +50,268 @@ TEMPLATE_FORM = r'''
             --success-bg: #ecfdf3;
             --shadow: 0 24px 60px rgba(55, 65, 81, 0.12);
         }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; min-height: 100%; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; background: radial-gradient(circle at top left, rgba(15,118,110,0.14),transparent 30%), radial-gradient(circle at bottom right, rgba(244,96,54,0.16),transparent 28%), linear-gradient(135deg,#f8f5ef 0%,#f4efe7 48%,#efe7dc 100%); color: var(--ink); }
+        body { padding: 24px 14px 40px; }
+        .shell { width: min(980px, 100%); margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
 
-        * {
-            box-sizing: border-box;
-        }
+        /* Cards */
+        .form-card { background: var(--card); border: 1px solid rgba(255,255,255,0.65); border-radius: 28px; box-shadow: var(--shadow); backdrop-filter: blur(10px); padding: 28px; }
+        .card-title { margin: 0 0 4px; font-size: 1.1rem; font-weight: 700; color: var(--accent-strong); display: flex; align-items: center; gap: 8px; }
+        .card-title .step-badge { background: var(--accent); color: #fff; border-radius: 999px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.82rem; font-weight: 800; flex-shrink: 0; }
+        .card-desc { margin: 0 0 20px; color: var(--muted); font-size: 0.9rem; }
 
-        html,
-        body {
-            margin: 0;
-            min-height: 100%;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            background:
-                radial-gradient(circle at top left, rgba(15, 118, 110, 0.14), transparent 30%),
-                radial-gradient(circle at bottom right, rgba(244, 96, 54, 0.16), transparent 28%),
-                linear-gradient(135deg, #f8f5ef 0%, #f4efe7 48%, #efe7dc 100%);
-            color: var(--ink);
-        }
+        /* Page title */
+        .page-title { text-align: center; margin: 0; font-size: 1.55rem; }
+        .page-copy { text-align: center; margin: 0; color: var(--muted); line-height: 1.5; }
 
-        body {
-            padding: 24px 14px 40px;
-        }
+        /* Grid */
+        .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 18px 16px; }
+        .field { min-width: 0; }
+        .field.full { grid-column: 1 / -1; }
+        label { display: block; margin-bottom: 8px; font-size: 0.95rem; font-weight: 700; }
+        input, textarea, select { width: 100%; border: 1px solid var(--line); border-radius: 16px; background: #fff; padding: 14px 15px; color: var(--ink); font-size: 1rem; transition: border-color .2s, box-shadow .2s, transform .2s; font-family: inherit; }
+        input:focus, textarea:focus, select:focus { outline: none; border-color: rgba(15,118,110,0.7); box-shadow: 0 0 0 4px rgba(15,118,110,0.12); transform: translateY(-1px); }
+        textarea { min-height: 90px; resize: vertical; }
+        .field.error input, .field.error textarea, .field.error select { border-color: #f97066; box-shadow: 0 0 0 4px rgba(249,112,102,0.12); }
+        .error-text { display: block; margin-top: 6px; color: var(--danger); font-size: 0.88rem; }
+        .helper { margin-top: 8px; color: var(--muted); font-size: 0.88rem; }
 
-        .shell {
-            width: min(980px, 100%);
-            margin: 0 auto;
-        }
+        /* Banners */
+        .banner { margin-bottom: 18px; padding: 14px 16px; border-radius: 18px; font-size: 0.96rem; line-height: 1.5; }
+        .banner.success { background: var(--success-bg); color: var(--success); border: 1px solid #abefc6; }
+        .banner.error { background: var(--danger-bg); color: var(--danger); border: 1px solid #fecdca; }
 
-        .form-card {
-            background: var(--card);
-            border: 1px solid rgba(255, 255, 255, 0.65);
-            border-radius: 28px;
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(10px);
-        }
+        /* Course list */
+        .turmas-list { display: flex; flex-direction: column; gap: 20px; }
+        .turma-item { background: #fffaf4; border: 1px solid var(--line); border-radius: 22px; padding: 20px; position: relative; }
+        .turma-item-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        .turma-num { font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+        .remove-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 1.3rem; padding: 2px 8px; border-radius: 8px; line-height: 1; transition: color .2s, background .2s; }
+        .remove-btn:hover { color: var(--danger); background: var(--danger-bg); }
 
-        .form-card {
-            padding: 28px;
-        }
+        .add-btn { display: flex; align-items: center; gap: 8px; background: none; border: 2px dashed var(--line); border-radius: 18px; color: var(--accent); font-size: 0.95rem; font-weight: 700; padding: 14px 20px; cursor: pointer; width: 100%; justify-content: center; transition: border-color .2s, background .2s; }
+        .add-btn:hover { border-color: var(--accent); background: rgba(15,118,110,0.04); }
 
-        .section-title {
-            margin: 0 0 6px;
-            font-size: 1.55rem;
-            text-align: center;
-        }
+        /* Color picker */
+        .color-picker { display: flex; align-items: center; gap: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: #fff; }
+        .color-picker input[type="color"] { width: 72px; min-width: 72px; height: 72px; padding: 0; border: 0; border-radius: 18px; background: transparent; cursor: pointer; }
+        .color-picker input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        .color-picker input[type="color"]::-webkit-color-swatch { border: 3px solid rgba(255,255,255,0.95); border-radius: 18px; box-shadow: 0 0 0 1px rgba(31,41,51,0.12); }
+        .color-meta { display: grid; gap: 6px; }
+        .color-code { font-family: Consolas, monospace; font-size: 0.95rem; color: var(--accent-strong); }
 
-        .section-copy {
-            margin: 0 0 24px;
-            color: var(--muted);
-            line-height: 1.5;
-            text-align: center;
-        }
-
-        .banner {
-            margin-bottom: 18px;
-            padding: 14px 16px;
-            border-radius: 18px;
-            font-size: 0.96rem;
-            line-height: 1.5;
-        }
-
-        .banner.success {
-            background: var(--success-bg);
-            color: var(--success);
-            border: 1px solid #abefc6;
-        }
-
-        .banner.error {
-            background: var(--danger-bg);
-            color: var(--danger);
-            border: 1px solid #fecdca;
-        }
-
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 18px 16px;
-        }
-
-        .field,
-        .field.full {
-            min-width: 0;
-        }
-
-        .field.full {
-            grid-column: 1 / -1;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 0.95rem;
-            font-weight: 700;
-        }
-
-        input,
-        textarea {
-            width: 100%;
-            border: 1px solid var(--line);
-            border-radius: 16px;
-            background: #fff;
-            padding: 14px 15px;
-            color: var(--ink);
-            font-size: 1rem;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-        }
-
-        input:focus,
-        textarea:focus {
-            outline: none;
-            border-color: rgba(15, 118, 110, 0.7);
-            box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
-            transform: translateY(-1px);
-        }
-
-        textarea {
-            min-height: 110px;
-            resize: vertical;
-        }
-
-        .field.error input,
-        .field.error textarea {
-            border-color: #f97066;
-            box-shadow: 0 0 0 4px rgba(249, 112, 102, 0.12);
-        }
-
-        .error-text {
-            display: block;
-            margin-top: 6px;
-            color: var(--danger);
-            font-size: 0.88rem;
-        }
-
-        .palette-label {
-            margin-bottom: 12px;
-        }
-
-        .color-picker {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            padding: 16px;
-            border: 1px solid var(--line);
-            border-radius: 18px;
-            background: #fff;
-        }
-
-        .color-picker input[type="color"] {
-            width: 72px;
-            min-width: 72px;
-            height: 72px;
-            padding: 0;
-            border: 0;
-            border-radius: 18px;
-            background: transparent;
-            cursor: pointer;
-        }
-
-        .color-picker input[type="color"]::-webkit-color-swatch-wrapper {
-            padding: 0;
-        }
-
-        .color-picker input[type="color"]::-webkit-color-swatch {
-            border: 3px solid rgba(255, 255, 255, 0.95);
-            border-radius: 18px;
-            box-shadow: 0 0 0 1px rgba(31, 41, 51, 0.12);
-        }
-
-        .color-meta {
-            display: grid;
-            gap: 6px;
-        }
-
-        .color-meta strong {
-            font-size: 1rem;
-        }
-
-        .color-code {
-            font-family: Consolas, "Courier New", monospace;
-            font-size: 0.95rem;
-            color: var(--accent-strong);
-        }
-
-        .ticket-preview {
-            position: relative;
-            margin-top: 14px;
-            padding: 18px;
-            border-radius: 22px;
-            color: #fff;
-            background: linear-gradient(135deg, var(--ticket-color, #0f766e) 0%, color-mix(in srgb, var(--ticket-color, #0f766e) 68%, #ffffff 32%) 100%);
-            box-shadow: 0 18px 36px rgba(15, 118, 110, 0.22);
-            overflow: hidden;
-        }
-
-        .ticket-preview::before,
-        .ticket-preview::after {
-            content: "";
-            position: absolute;
-            width: 28px;
-            height: 28px;
-            border-radius: 999px;
-            background: var(--bg);
-            top: 50%;
-            transform: translateY(-50%);
-            opacity: 0.95;
-        }
-
-        .ticket-preview::before {
-            left: -14px;
-        }
-
-        .ticket-preview::after {
-            right: -14px;
-        }
-
-        .ticket-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 7px 12px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.16);
-            border: 1px solid rgba(255, 255, 255, 0.22);
-            font-size: 0.78rem;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-        }
-
-        .ticket-title {
-            margin: 14px 0 6px;
-            font-size: 1.15rem;
-            font-weight: 800;
-        }
-
-        .ticket-copy {
-            margin: 0;
-            max-width: 320px;
-            font-size: 0.95rem;
-            line-height: 1.45;
-            color: rgba(255, 255, 255, 0.92);
-        }
-
-        .ticket-footer {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin-top: 18px;
-            padding-top: 14px;
-            border-top: 1px dashed rgba(255, 255, 255, 0.3);
-        }
-
-        .ticket-level {
-            font-size: 0.82rem;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-        }
-
-        .ticket-stars {
-            font-size: 1rem;
-            letter-spacing: 0.18em;
-            filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.2));
-        }
-
-        .actions {
-            margin-top: 26px;
-            display: flex;
-            justify-content: flex-end;
-        }
-
-        .submit-button {
-            border: 0;
-            border-radius: 999px;
-            background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
-            color: #fff;
-            padding: 15px 24px;
-            font-size: 1rem;
-            font-weight: 700;
-            cursor: pointer;
-            box-shadow: 0 16px 32px rgba(15, 118, 110, 0.24);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .submit-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 18px 36px rgba(15, 118, 110, 0.28);
-        }
-
-        .helper {
-            margin-top: 10px;
-            color: var(--muted);
-            font-size: 0.88rem;
-        }
+        /* Actions */
+        .actions { margin-top: 26px; display: flex; justify-content: flex-end; }
+        .submit-button { border: 0; border-radius: 999px; background: linear-gradient(135deg, #0f766e 0%, #115e59 100%); color: #fff; padding: 15px 36px; font-size: 1rem; font-weight: 700; cursor: pointer; box-shadow: 0 16px 32px rgba(15,118,110,0.24); transition: transform .2s, box-shadow .2s; }
+        .submit-button:hover { transform: translateY(-2px); box-shadow: 0 18px 36px rgba(15,118,110,0.28); }
 
         @media (max-width: 760px) {
-            body {
-                padding: 16px 10px 28px;
-            }
-
-            .form-card {
-                padding: 20px;
-                border-radius: 22px;
-            }
-
-            .form-grid {
-                grid-template-columns: minmax(0, 1fr);
-            }
-
-            .actions {
-                justify-content: stretch;
-            }
-
-            .submit-button {
-                width: 100%;
-            }
-
-            .color-picker {
-                flex-direction: column;
-                align-items: center;
-                text-align: center;
-                padding: 14px;
-            }
-
-            .color-picker input[type="color"] {
-                width: min(100%, 84px);
-                min-width: 84px;
-                height: 84px;
-            }
-
-            .color-meta {
-                justify-items: center;
-            }
-
-            .ticket-preview {
-                padding: 16px;
-                border-radius: 20px;
-            }
-
-            .ticket-copy {
-                max-width: none;
-            }
-
-            .ticket-footer {
-                flex-direction: column;
-                align-items: flex-start;
-            }
+            body { padding: 16px 10px 28px; }
+            .form-card { padding: 20px; border-radius: 22px; }
+            .form-grid { grid-template-columns: minmax(0,1fr); }
+            .actions { justify-content: stretch; }
+            .submit-button { width: 100%; }
+            .color-picker { flex-direction: column; align-items: center; text-align: center; }
+            .color-picker input[type="color"] { width: min(100%,84px); min-width: 84px; height: 84px; }
         }
     </style>
 </head>
 <body>
-    <div class="shell">
-        <section class="form-card">
-            <h2 class="section-title">FORMULÁRIO</h2>
-            <p class="section-copy">Preencha os dados exatamente como devem ser registrados. Para endereço e CEP, use a referência do Maps, como você pediu.</p>
+<div class="shell">
 
-            {% if success_message %}
-            <div class="banner success">{{ success_message }}</div>
-            {% endif %}
+    {% if success_message %}
+    <div class="banner success">{{ success_message }}</div>
+    {% endif %}
+    {% if save_error %}
+    <div class="banner error">{{ save_error }}</div>
+    {% endif %}
 
-            {% if save_error %}
-            <div class="banner error">{{ save_error }}</div>
-            {% endif %}
-
-            <form method="POST" action="{{ url_for('home') }}" enctype="multipart/form-data" novalidate>
-                <div class="form-grid">
-                    <div class="field {% if errors.get('nome_local') %}error{% endif %}">
-                        <label for="nome_local">Nome do local *</label>
-                        <input type="text" id="nome_local" name="nome_local" maxlength="120" placeholder="Ex.: Polo Campo Grande" value="{{ form_data.get('nome_local', '') }}">
-                        {% if errors.get('nome_local') %}<span class="error-text">{{ errors.get('nome_local') }}</span>{% endif %}
-                    </div>
-
-                    <div class="field {% if errors.get('regiao') %}error{% endif %}">
-                        <label for="regiao">Região *</label>
-                        <input type="text" id="regiao" name="regiao" maxlength="120" placeholder="Ex.: Zona Oeste" value="{{ form_data.get('regiao', '') }}">
-                        {% if errors.get('regiao') %}<span class="error-text">{{ errors.get('regiao') }}</span>{% endif %}
-                    </div>
-
-                    <div class="field full {% if errors.get('endereco_completo') %}error{% endif %}">
-                        <label for="endereco_completo">Endereço completo *</label>
-                        <textarea id="endereco_completo" name="endereco_completo" placeholder="Digite o endereço completo conforme o Maps">{{ form_data.get('endereco_completo', '') }}</textarea>
-                        {% if errors.get('endereco_completo') %}<span class="error-text">{{ errors.get('endereco_completo') }}</span>{% endif %}
-                    </div>
-
-                    <div class="field {% if errors.get('cep') %}error{% endif %}">
-                            <!-- Campo de CEP removido -->
-                    </div>
-
-                    <div class="field full {% if errors.get('logo') %}error{% endif %}">
-                        <label for="logo">Logo do local *</label>
-                        <div style="display: flex; align-items: center; gap: 18px; flex-wrap: wrap;">
-                            <input type="file" id="logo" name="logo" accept="image/*" style="flex: none;" onchange="previewLogo(event)">
-                            <div id="logo-preview-container" style="min-width: 120px; min-height: 80px; display: flex; align-items: center; justify-content: center; border: 1px dashed #ccc; border-radius: 12px; background: #fafafa;">
-                                {% if form_data.get('logo') %}
-                                    <img id="logo-preview" src="/{{ form_data.get('logo') }}" alt="Prévia do logo" style="max-width: 120px; max-height: 80px; border-radius: 8px;">
-                                {% else %}
-                                    <span id="logo-preview-placeholder" style="color: #aaa; font-size: 0.95rem;">Prévia do logo</span>
-                                {% endif %}
-                            </div>
-                        </div>
-                        <div class="helper">Selecione a imagem do logo do local. O logo será exibido na ficha e pode ser colorido ou em preto e branco. <b>Capriche!</b></div>
-                        {% if errors.get('logo') %}<span class="error-text">{{ errors.get('logo') }}</span>{% endif %}
-                    </div>
-
-                    <div class="field {% if errors.get('cursos') %}error{% endif %}">
-                        <label for="cursos">Cursos *</label>
-                        <input type="text" id="cursos" name="cursos" maxlength="160" placeholder="Ex.: Informática Básica" value="{{ form_data.get('cursos', '') }}">
-                        {% if errors.get('cursos') %}<span class="error-text">{{ errors.get('cursos') }}</span>{% endif %}
-                    </div>
-
-                    <div class="field {% if errors.get('local_turma') %}error{% endif %}">
-                        <label for="local_turma">Local da turma *</label>
-                        <input type="text" id="local_turma" name="local_turma" maxlength="120" placeholder="Ex.: Sala 02" value="{{ form_data.get('local_turma', '') }}">
-                        {% if errors.get('local_turma') %}<span class="error-text">{{ errors.get('local_turma') }}</span>{% endif %}
-                    </div>
-
-                    <div class="field {% if errors.get('horario') %}error{% endif %}">
-                        <label for="horario">Horário *</label>
-                        <input type="text" id="horario" name="horario" maxlength="80" placeholder="Ex.: 18h às 20h" value="{{ form_data.get('horario', '') }}">
-                        {% if errors.get('horario') %}<span class="error-text">{{ errors.get('horario') }}</span>{% endif %}
-                    </div>
-
-                    <div class="field {% if errors.get('vagas') %}error{% endif %}">
-                        <label for="vagas">Vagas *</label>
-                        <input type="number" id="vagas" name="vagas" min="1" max="9999" step="1" placeholder="Ex.: 30" value="{{ form_data.get('vagas', '') }}">
-                        {% if errors.get('vagas') %}<span class="error-text">{{ errors.get('vagas') }}</span>{% endif %}
-                    </div>
-
-                    <div class="field {% if errors.get('turma') %}error{% endif %}">
-                        <label for="turma">Turma *</label>
-                        <input type="text" id="turma" name="turma" maxlength="120" placeholder="Ex.: Turma A" value="{{ form_data.get('turma', '') }}">
-                        {% if errors.get('turma') %}<span class="error-text">{{ errors.get('turma') }}</span>{% endif %}
-                    </div>
-
-                    <div class="field {% if errors.get('dias_aula') %}error{% endif %}">
-                        <label for="dias_aula">Dias de aula *</label>
-                        <input type="text" id="dias_aula" name="dias_aula" maxlength="120" placeholder="Ex.: Segunda e quarta" value="{{ form_data.get('dias_aula', '') }}">
-                        {% if errors.get('dias_aula') %}<span class="error-text">{{ errors.get('dias_aula') }}</span>{% endif %}
-                    </div>
-
-                    <div class="field {% if errors.get('data_inicio') %}error{% endif %}">
-                        <label for="data_inicio">Data de início *</label>
-                        <input type="date" id="data_inicio" name="data_inicio" value="{{ form_data.get('data_inicio', '') }}">
-                        {% if errors.get('data_inicio') %}<span class="error-text">{{ errors.get('data_inicio') }}</span>{% endif %}
-                    </div>
-
-                    <div class="field {% if errors.get('encerramento') %}error{% endif %}">
-                        <label for="encerramento">Encerramento *</label>
-                        <input type="date" id="encerramento" name="encerramento" value="{{ form_data.get('encerramento', '') }}">
-                        {% if errors.get('encerramento') %}<span class="error-text">{{ errors.get('encerramento') }}</span>{% endif %}
-                    </div>
-
-                    <div class="field full {% if errors.get('cor_ficha') %}error{% endif %}">
-                        <label class="palette-label" for="cor_ficha">Cor da ficha *</label>
-                        <div class="color-picker">
-                            <input type="color" id="cor_ficha" name="cor_ficha" value="{{ form_data.get('cor_ficha', '') or default_color }}">
-                            <div class="color-meta">
-                                <strong>Escolha qualquer cor</strong>
-                                <span class="color-code" id="cor_ficha_valor">{{ form_data.get('cor_ficha', '') or default_color }}</span>
-                            </div>
-                        </div>
-                        <div class="ticket-preview" id="ticket_preview" style="--ticket-color: {{ form_data.get('cor_ficha', '') or default_color }};">
-                            <div class="ticket-badge">Ficha desbloqueada</div>
-                            <div class="ticket-title">Prévia da ficha</div>
-                            <p class="ticket-copy">A cor escolhida vira a identidade visual da ficha.</p>
-                            <div class="ticket-footer">
-                                <span class="ticket-level">Nível visual da ficha</span>
-                                <span class="ticket-stars">★ ★ ★</span>
-                            </div>
-                        </div>
-                        {% if errors.get('cor_ficha') %}<span class="error-text">{{ errors.get('cor_ficha') }}</span>{% endif %}
-                        <div class="helper">Clique no seletor para abrir a paleta do navegador e escolher a cor que quiser.</div>
-                    </div>
-                </div>
-
-                <div class="actions">
-                    <button type="submit" class="submit-button">Salvar informações</button>
-                </div>
-            </form>
-        </section>
+    <div style="text-align:center;">
+        <h2 class="page-title">Formulário de Link de Inscrições</h2>
+        <p class="page-copy">Preencha os dados do projeto e adicione os cursos/turmas disponíveis.</p>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const colorInput = document.getElementById('cor_ficha');
-            const colorValue = document.getElementById('cor_ficha_valor');
-            const ticketPreview = document.getElementById('ticket_preview');
+    <form method="POST" action="{{ url_for('home') }}" enctype="multipart/form-data" novalidate>
 
-            colorInput.addEventListener('input', function(event) {
-                colorValue.textContent = event.target.value;
-                ticketPreview.style.setProperty('--ticket-color', event.target.value);
-            });
-        });
+        <!-- BLOCO 1: DADOS DO PROJETO -->
+        <div class="form-card" style="margin-bottom:0;">
+            <div class="card-title"><span class="step-badge">1</span> Dados do Projeto</div>
+            <p class="card-desc">Informações gerais que aparecem no topo do link de inscrições.</p>
+            <div class="form-grid">
+                <div class="field {% if errors.get('nome_projeto') %}error{% endif %}">
+                    <label for="nome_projeto">Nome do projeto *</label>
+                    <input type="text" id="nome_projeto" name="nome_projeto" maxlength="120" placeholder="Ex.: EDUCATECH" value="{{ form_data.get('nome_projeto','') }}">
+                    {% if errors.get('nome_projeto') %}<span class="error-text">{{ errors.get('nome_projeto') }}</span>{% endif %}
+                </div>
+                <div class="field {% if errors.get('titulo') %}error{% endif %}">
+                    <label for="titulo">Título *</label>
+                    <input type="text" id="titulo" name="titulo" maxlength="200" placeholder="Ex.: TRANSFORME SUA CARREIRA AGORA!" value="{{ form_data.get('titulo','') }}">
+                    {% if errors.get('titulo') %}<span class="error-text">{{ errors.get('titulo') }}</span>{% endif %}
+                </div>
+                <div class="field full {% if errors.get('subtitulo') %}error{% endif %}">
+                    <label for="subtitulo">Subtítulo / Slogan *</label>
+                    <textarea id="subtitulo" name="subtitulo" placeholder="Ex.: Conectando vidas, transformando pessoas.">{{ form_data.get('subtitulo','') }}</textarea>
+                    {% if errors.get('subtitulo') %}<span class="error-text">{{ errors.get('subtitulo') }}</span>{% endif %}
+                </div>
+                <div class="field full {% if errors.get('beneficios') %}error{% endif %}">
+                    <label for="beneficios">Benefícios / Diferenciais *</label>
+                    <textarea id="beneficios" name="beneficios" placeholder="- 100% Gratuito&#10;- Certificado de Conclusão&#10;- Material didático incluso" style="min-height:120px;">{{ form_data.get('beneficios','') }}</textarea>
+                    <div class="helper">Liste um benefício por linha, começando com hífen (-).</div>
+                    {% if errors.get('beneficios') %}<span class="error-text">{{ errors.get('beneficios') }}</span>{% endif %}
+                </div>
+                <div class="field full {% if errors.get('cor_ficha') %}error{% endif %}">
+                    <label>Cor da ficha *</label>
+                    <div class="color-picker">
+                        <input type="color" id="cor_ficha" name="cor_ficha" value="{{ form_data.get('cor_ficha','') or default_color }}">
+                        <div class="color-meta">
+                            <strong>Escolha qualquer cor</strong>
+                            <span class="color-code" id="cor_ficha_valor">{{ form_data.get('cor_ficha','') or default_color }}</span>
+                        </div>
+                    </div>
+                    {% if errors.get('cor_ficha') %}<span class="error-text">{{ errors.get('cor_ficha') }}</span>{% endif %}
+                </div>
+            </div>
+        </div>
 
-        function previewLogo(event) {
-            const input = event.target;
-            const previewContainer = document.getElementById('logo-preview-container');
-            let preview = document.getElementById('logo-preview');
-            let placeholder = document.getElementById('logo-preview-placeholder');
-            if (input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    if (!preview) {
-                        preview = document.createElement('img');
-                        preview.id = 'logo-preview';
-                        preview.style.maxWidth = '120px';
-                        preview.style.maxHeight = '80px';
-                        preview.style.borderRadius = '8px';
-                        previewContainer.innerHTML = '';
-                        previewContainer.appendChild(preview);
-                    }
-                    preview.src = e.target.result;
-                };
-                reader.readAsDataURL(input.files[0]);
-                if (placeholder) placeholder.style.display = 'none';
-            } else {
-                if (preview) preview.remove();
-                if (placeholder) placeholder.style.display = '';
-            }
-        }
-    </script>
+        <!-- BLOCO 2: LOCAIS -->
+        <div class="form-card" style="margin-top:24px; margin-bottom:0;">
+            <div class="card-title"><span class="step-badge">2</span> Locais de Aula</div>
+            <p class="card-desc">Cadastre todos os locais onde ocorrerão as aulas (nome, região e endereço completo).</p>
+            <div id="locais-list" class="turmas-list">
+                {% set locais = form_data.get('locais', [{}]) %}
+                {% for local in locais %}
+                <div class="turma-item" data-local>
+                    <div class="turma-item-header">
+                        <span class="turma-num">Local {{ loop.index }}</span>
+                        {% if loop.length > 1 %}<button type="button" class="remove-btn" onclick="removeItem(this, 'local')">✕</button>{% endif %}
+                    </div>
+                    <div class="form-grid">
+                        <div class="field"><label>Nome do local *</label><input type="text" name="local_nome[]" maxlength="120" placeholder="Ex.: Polo Campo Grande" value="{{ local.get('nome','') }}"></div>
+                        <div class="field"><label>Região *</label><input type="text" name="local_regiao[]" maxlength="120" placeholder="Ex.: Zona Oeste" value="{{ local.get('regiao','') }}"></div>
+                        <div class="field full"><label>Endereço completo *</label><textarea name="local_endereco[]" placeholder="Digite o endereço completo conforme o Maps">{{ local.get('endereco','') }}</textarea></div>
+                        <div class="field full">
+                            <label>Logo do local</label>
+                            <input type="file" name="local_logo[]" accept="image/*">
+                            <div class="helper">Opcional. Imagens png, jpg, gif ou webp.</div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="add-btn" style="margin-top:16px;" onclick="addLocal()">+ Adicionar local</button>
+            {% if errors.get('locais') %}<span class="error-text" style="margin-top:8px;display:block;">{{ errors.get('locais') }}</span>{% endif %}
+        </div>
+
+        <!-- BLOCO 3: CURSOS E TURMAS -->
+        <div class="form-card" style="margin-top:24px; margin-bottom:0;">
+            <div class="card-title"><span class="step-badge">3</span> Cursos e Turmas</div>
+            <p class="card-desc">Adicione cada turma com seu curso, local, horário, vagas e datas.</p>
+            <div id="turmas-list" class="turmas-list">
+                {% set turmas = form_data.get('turmas', [{}]) %}
+                {% for turma in turmas %}
+                <div class="turma-item" data-turma>
+                    <div class="turma-item-header">
+                        <span class="turma-num">Turma {{ loop.index }}</span>
+                        {% if loop.length > 1 %}<button type="button" class="remove-btn" onclick="removeItem(this, 'turma')">✕</button>{% endif %}
+                    </div>
+                    <div class="form-grid">
+                        <div class="field"><label>Curso *</label><input type="text" name="turma_curso[]" maxlength="160" placeholder="Ex.: Designer de Unha" value="{{ turma.get('curso','') }}"></div>
+                        <div class="field"><label>Nome/código da turma *</label><input type="text" name="turma_nome[]" maxlength="160" placeholder="Ex.: Turma A" value="{{ turma.get('nome','') }}"></div>
+                        <div class="field"><label>Local da turma *</label><input type="text" name="turma_local[]" maxlength="160" placeholder="Ex.: Polo Campo Grande — Sala 02" value="{{ turma.get('local','') }}"></div>
+                        <div class="field"><label>Horário *</label><input type="text" name="turma_horario[]" maxlength="80" placeholder="Ex.: 9h30 às 11h30" value="{{ turma.get('horario','') }}"></div>
+                        <div class="field"><label>Vagas *</label><input type="number" name="turma_vagas[]" min="1" max="9999" placeholder="Ex.: 30" value="{{ turma.get('vagas','') }}"></div>
+                        <div class="field"><label>Dias de aula *</label><input type="text" name="turma_dias[]" maxlength="120" placeholder="Ex.: Terça e Quinta" value="{{ turma.get('dias','') }}"></div>
+                        <div class="field"><label>Data de início *</label><input type="date" name="turma_inicio[]" value="{{ turma.get('inicio','') }}"></div>
+                        <div class="field"><label>Encerramento *</label><input type="date" name="turma_encerramento[]" value="{{ turma.get('encerramento','') }}"></div>
+                        <div class="field full"><label>Endereço da turma *</label><textarea name="turma_endereco[]" placeholder="📍Endereço completo conforme o Maps + CEP">{{ turma.get('endereco','') }}</textarea></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="add-btn" style="margin-top:16px;" onclick="addTurma()">+ Adicionar turma</button>
+            {% if errors.get('turmas') %}<span class="error-text" style="margin-top:8px;display:block;">{{ errors.get('turmas') }}</span>{% endif %}
+        </div>
+
+        <div class="form-card" style="margin-top:24px;">
+            <div class="actions" style="margin-top:0;">
+                <button type="submit" class="submit-button">Salvar informações</button>
+            </div>
+        </div>
+
+    </form>
+</div>
+
+<script>
+document.getElementById('cor_ficha').addEventListener('input', function(e) {
+    document.getElementById('cor_ficha_valor').textContent = e.target.value;
+});
+
+const LOCAL_TEMPLATE = `
+<div class="turma-item" data-local>
+  <div class="turma-item-header">
+    <span class="turma-num">Local __N__</span>
+    <button type="button" class="remove-btn" onclick="removeItem(this,'local')">✕</button>
+  </div>
+  <div class="form-grid">
+    <div class="field"><label>Nome do local *</label><input type="text" name="local_nome[]" maxlength="120" placeholder="Ex.: Polo Campo Grande"></div>
+    <div class="field"><label>Região *</label><input type="text" name="local_regiao[]" maxlength="120" placeholder="Ex.: Zona Oeste"></div>
+    <div class="field full"><label>Endereço completo *</label><textarea name="local_endereco[]" placeholder="Digite o endereço completo conforme o Maps"></textarea></div>
+    <div class="field full"><label>Logo do local</label><input type="file" name="local_logo[]" accept="image/*"><div class="helper">Opcional.</div></div>
+  </div>
+</div>`;
+
+const TURMA_TEMPLATE = `
+<div class="turma-item" data-turma>
+  <div class="turma-item-header">
+    <span class="turma-num">Turma __N__</span>
+    <button type="button" class="remove-btn" onclick="removeItem(this,'turma')">✕</button>
+  </div>
+  <div class="form-grid">
+    <div class="field"><label>Curso *</label><input type="text" name="turma_curso[]" maxlength="160" placeholder="Ex.: Designer de Unha"></div>
+    <div class="field"><label>Nome/código da turma *</label><input type="text" name="turma_nome[]" maxlength="160" placeholder="Ex.: Turma A"></div>
+    <div class="field"><label>Local da turma *</label><input type="text" name="turma_local[]" maxlength="160" placeholder="Ex.: Polo Campo Grande — Sala 02"></div>
+    <div class="field"><label>Horário *</label><input type="text" name="turma_horario[]" maxlength="80" placeholder="Ex.: 9h30 às 11h30"></div>
+    <div class="field"><label>Vagas *</label><input type="number" name="turma_vagas[]" min="1" max="9999" placeholder="Ex.: 30"></div>
+    <div class="field"><label>Dias de aula *</label><input type="text" name="turma_dias[]" maxlength="120" placeholder="Ex.: Terça e Quinta"></div>
+    <div class="field"><label>Data de início *</label><input type="date" name="turma_inicio[]"></div>
+    <div class="field"><label>Encerramento *</label><input type="date" name="turma_encerramento[]"></div>
+    <div class="field full"><label>Endereço da turma *</label><textarea name="turma_endereco[]" placeholder="📍Endereço completo conforme o Maps + CEP"></textarea></div>
+  </div>
+</div>`;
+
+function addLocal() {
+    const list = document.getElementById('locais-list');
+    const n = list.querySelectorAll('[data-local]').length + 1;
+    const div = document.createElement('div');
+    div.innerHTML = LOCAL_TEMPLATE.replace('__N__', n);
+    list.appendChild(div.firstElementChild);
+    renumber();
+}
+
+function addTurma() {
+    const list = document.getElementById('turmas-list');
+    const n = list.querySelectorAll('[data-turma]').length + 1;
+    const div = document.createElement('div');
+    div.innerHTML = TURMA_TEMPLATE.replace('__N__', n);
+    list.appendChild(div.firstElementChild);
+    renumber();
+}
+
+function removeItem(btn, type) {
+    btn.closest('[data-' + type + ']').remove();
+    renumber();
+}
+
+function renumber() {
+    document.querySelectorAll('[data-local]').forEach((el, i) => {
+        el.querySelector('.turma-num').textContent = 'Local ' + (i+1);
+    });
+    document.querySelectorAll('[data-turma]').forEach((el, i) => {
+        el.querySelector('.turma-num').textContent = 'Turma ' + (i+1);
+    });
+}
+</script>
 </body>
 </html>
 '''
@@ -568,113 +325,197 @@ def parse_date(value):
     cleaned = (value or "").strip()
     if not cleaned:
         return "", False
-
     for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
         try:
-            parsed = datetime.strptime(cleaned, fmt)
-            return parsed.strftime("%d/%m/%Y"), True
+            return datetime.strptime(cleaned, fmt).strftime("%d/%m/%Y"), True
         except ValueError:
             continue
-
     return cleaned, False
 
 
-def get_default_form_data(source=None):
-    form_data = {
-        "nome_local": "",
-        "regiao": "",
-        "endereco_completo": "",
-        "cursos": "",
-        "local_turma": "",
-        "horario": "",
-        "vagas": "",
-        "turma": "",
-        "dias_aula": "",
-        "data_inicio": "",
-        "encerramento": "",
-        "cor_ficha": "",
-        "logo": "",
+def build_formatted_text(form_data):
+    """Monta o texto formatado completo para colar em uma única célula da planilha."""
+    lines = []
+
+    lines.append("PROJETO:")
+    lines.append(form_data["nome_projeto"].upper())
+    lines.append("")
+    lines.append("TÍTULO:")
+    lines.append(form_data["titulo"].upper())
+    lines.append("")
+    lines.append("SUBTÍTULO:")
+    lines.append(form_data["subtitulo"])
+    lines.append("")
+
+    # Lista de cursos únicos
+    turmas = form_data.get("turmas", [])
+    cursos_unicos = []
+    seen = set()
+    for t in turmas:
+        c = t.get("curso", "").strip()
+        if c and c.upper() not in seen:
+            seen.add(c.upper())
+            cursos_unicos.append(c)
+
+    if cursos_unicos:
+        lines.append("CURSOS DISPONÍVEIS:")
+        for c in cursos_unicos:
+            emoji = get_course_emoji(c)
+            lines.append(f"{emoji} {c.upper()}")
+        lines.append("")
+
+    # Benefícios
+    beneficios = form_data.get("beneficios", "").strip()
+    if beneficios:
+        lines.append("BENEFÍCIOS:")
+        for linha in beneficios.splitlines():
+            linha = linha.strip()
+            if linha:
+                if not linha.startswith("-"):
+                    linha = "- " + linha
+                lines.append(linha)
+        lines.append("")
+
+    # Opções por curso
+    opcao_num = 0
+    sub_map = {}  # curso -> sub-número
+    for turma in turmas:
+        curso = turma.get("curso", "").strip()
+        if not curso:
+            continue
+        curso_up = curso.upper()
+
+        if curso_up not in sub_map:
+            opcao_num += 1
+            sub_map[curso_up] = {"opcao": opcao_num, "sub": 0}
+            lines.append(f"OPÇÃO {opcao_num}")
+            lines.append(f"CURSO = {curso_up}")
+
+        sub_map[curso_up]["sub"] += 1
+        sub = sub_map[curso_up]["sub"]
+        opcao = sub_map[curso_up]["opcao"]
+
+        lines.append(f"###OPÇÃO {opcao}.{sub}")
+
+        nome_turma = turma.get("nome", "").strip()
+        local = turma.get("local", "").strip()
+        horario = turma.get("horario", "").strip()
+        dias = turma.get("dias", "").strip()
+        inicio, _ = parse_date(turma.get("inicio", ""))
+        encerramento, _ = parse_date(turma.get("encerramento", ""))
+        endereco = turma.get("endereco", "").strip()
+        vagas = turma.get("vagas", "").strip()
+
+        if nome_turma:
+            lines.append(f"TURMA = {nome_turma}")
+        if local:
+            lines.append(f"LOCAL = {local.upper()}")
+        if dias and horario:
+            lines.append(f"DIA / HORÁRIO = {dias} | {horario}")
+        elif horario:
+            lines.append(f"HORÁRIO = {horario}")
+        if vagas:
+            lines.append(f"VAGAS = {vagas}")
+        if inicio:
+            lines.append(f"DATA DE INÍCIO = {inicio}")
+        if encerramento:
+            lines.append(f"ENCERRAMENTO = {encerramento}")
+        if endereco:
+            addr = endereco if endereco.startswith("📍") else f"📍{endereco}"
+            lines.append(f"ENDEREÇO = {addr}")
+
+    lines.append("")
+    lines.append(f"COR DA FICHA = {form_data.get('cor_ficha','')}")
+
+    return "\n".join(lines)
+
+
+def get_default_form_data():
+    return {
+        "nome_projeto": "",
+        "titulo": "",
+        "subtitulo": "",
+        "beneficios": "",
+        "cor_ficha": DEFAULT_COLOR,
+        "locais": [{}],
+        "turmas": [{}],
     }
 
-    if not source:
-        return form_data
 
-    for key in form_data:
-        form_data[key] = (source.get(key, "") or "").strip()
+def parse_lists_from_request(req):
+    """Extrai locais e turmas do request como listas de dicts."""
+    nomes = req.form.getlist("local_nome[]")
+    regioes = req.form.getlist("local_regiao[]")
+    enderecos = req.form.getlist("local_endereco[]")
 
-    if not form_data["cor_ficha"]:
-        form_data["cor_ficha"] = DEFAULT_COLOR
+    locais = []
+    for i in range(len(nomes)):
+        locais.append({
+            "nome": nomes[i].strip() if i < len(nomes) else "",
+            "regiao": regioes[i].strip() if i < len(regioes) else "",
+            "endereco": enderecos[i].strip() if i < len(enderecos) else "",
+        })
 
-    return form_data
+    t_cursos = req.form.getlist("turma_curso[]")
+    t_nomes = req.form.getlist("turma_nome[]")
+    t_locais = req.form.getlist("turma_local[]")
+    t_horarios = req.form.getlist("turma_horario[]")
+    t_vagas = req.form.getlist("turma_vagas[]")
+    t_dias = req.form.getlist("turma_dias[]")
+    t_inicios = req.form.getlist("turma_inicio[]")
+    t_encerramentos = req.form.getlist("turma_encerramento[]")
+    t_enderecos = req.form.getlist("turma_endereco[]")
+
+    turmas = []
+    for i in range(len(t_cursos)):
+        turmas.append({
+            "curso": t_cursos[i].strip() if i < len(t_cursos) else "",
+            "nome": t_nomes[i].strip() if i < len(t_nomes) else "",
+            "local": t_locais[i].strip() if i < len(t_locais) else "",
+            "horario": t_horarios[i].strip() if i < len(t_horarios) else "",
+            "vagas": t_vagas[i].strip() if i < len(t_vagas) else "",
+            "dias": t_dias[i].strip() if i < len(t_dias) else "",
+            "inicio": t_inicios[i].strip() if i < len(t_inicios) else "",
+            "encerramento": t_encerramentos[i].strip() if i < len(t_encerramentos) else "",
+            "endereco": t_enderecos[i].strip() if i < len(t_enderecos) else "",
+        })
+
+    return locais, turmas
 
 
-def validate_form_data(form_data):
+def validate(form_data):
     errors = {}
 
-    required_messages = {
-        "nome_local": "Informe o nome do local.",
-        "regiao": "Informe a região.",
-        "endereco_completo": "Informe o endereço completo.",
-        "cursos": "Informe o curso.",
-        "local_turma": "Informe o local da turma.",
-        "horario": "Informe o horário.",
-        "vagas": "Informe a quantidade de vagas.",
-        "turma": "Informe a turma.",
-        "dias_aula": "Informe os dias de aula.",
-        "data_inicio": "Informe a data de início.",
-        "encerramento": "Informe o encerramento.",
-        "cor_ficha": "Escolha a cor da ficha.",
-        "logo": "Selecione o logo do local.",
-    }
-    # Validação do campo logo (opcional)
-    if form_data.get("logo_error"):
-        errors["logo"] = form_data["logo_error"]
+    for field, msg in [
+        ("nome_projeto", "Informe o nome do projeto."),
+        ("titulo", "Informe o título."),
+        ("subtitulo", "Informe o subtítulo/slogan."),
+        ("beneficios", "Informe os benefícios."),
+        ("cor_ficha", "Escolha a cor da ficha."),
+    ]:
+        if not form_data.get(field, "").strip():
+            errors[field] = msg
 
-    for field_name, message in required_messages.items():
-        if not form_data[field_name]:
-            errors[field_name] = message
-
-    # Campo de CEP removido
-
-    vagas = form_data["vagas"]
-    if vagas:
-        if not vagas.isdigit():
-            errors["vagas"] = "Digite apenas números inteiros para vagas."
-        elif int(vagas) <= 0:
-            errors["vagas"] = "A quantidade de vagas deve ser maior que zero."
-
-    for field_name in DATE_FIELDS:
-        value = form_data[field_name]
-        if value:
-            _, valid = parse_date(value)
-            if not valid:
-                label = "data de início" if field_name == "data_inicio" else "encerramento"
-                errors[field_name] = f"Informe um {label} válido."
-
-    if form_data["cor_ficha"] and not re.fullmatch(r"#[0-9a-fA-F]{6}", form_data["cor_ficha"]):
+    if form_data.get("cor_ficha") and not re.fullmatch(r"#[0-9a-fA-F]{6}", form_data["cor_ficha"]):
         errors["cor_ficha"] = "Escolha uma cor válida usando a paleta."
 
+    locais = form_data.get("locais", [])
+    for i, local in enumerate(locais):
+        if not local.get("nome") or not local.get("regiao") or not local.get("endereco"):
+            errors["locais"] = f"Preencha todos os campos obrigatórios do Local {i+1}."
+            break
+
+    turmas = form_data.get("turmas", [])
+    if not turmas:
+        errors["turmas"] = "Adicione ao menos uma turma."
+    for i, t in enumerate(turmas):
+        required = ["curso", "nome", "local", "horario", "vagas", "dias", "inicio", "encerramento", "endereco"]
+        missing = [f for f in required if not t.get(f)]
+        if missing:
+            errors["turmas"] = f"Preencha todos os campos da Turma {i+1}."
+            break
+
     return errors
-
-
-def build_sheet_row(form_data):
-    data_inicio, _ = parse_date(form_data["data_inicio"])
-    encerramento, _ = parse_date(form_data["encerramento"])
-    return [
-        form_data["nome_local"],
-        form_data["regiao"],
-        form_data["endereco_completo"],
-        form_data["cursos"],
-        form_data["local_turma"],
-        form_data["horario"],
-        form_data["vagas"],
-        form_data["turma"],
-        form_data["dias_aula"],
-        data_inicio,
-        encerramento,
-        form_data["cor_ficha"],
-        form_data.get("logo", ""),
-    ]
 
 
 def render_form(form_data=None, errors=None, success_message="", save_error=""):
@@ -693,42 +534,45 @@ def home():
     if request.method == "GET":
         return render_form()
 
-    form_data = get_default_form_data(request.form)
+    locais, turmas = parse_lists_from_request(request)
 
-    # Lida com upload do logo
-    logo_file = request.files.get("logo")
-    if logo_file and logo_file.filename:
-        filename = secure_filename(logo_file.filename)
-        ext = os.path.splitext(filename)[1].lower()
-        if ext not in [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"]:
-            form_data["logo_error"] = "Apenas imagens são permitidas (png, jpg, jpeg, gif, bmp, webp)."
-        else:
-            logo_path = os.path.join("static", filename)
-            try:
-                logo_file.save(logo_path)
-                form_data["logo"] = logo_path
-            except Exception as e:
-                form_data["logo_error"] = "Erro ao salvar a imagem. Tente novamente."
-    else:
-        form_data["logo"] = ""
+    form_data = {
+        "nome_projeto": request.form.get("nome_projeto", "").strip(),
+        "titulo": request.form.get("titulo", "").strip(),
+        "subtitulo": request.form.get("subtitulo", "").strip(),
+        "beneficios": request.form.get("beneficios", "").strip(),
+        "cor_ficha": request.form.get("cor_ficha", DEFAULT_COLOR).strip(),
+        "locais": locais,
+        "turmas": turmas,
+    }
 
-    errors = validate_form_data(form_data)
+    errors = validate(form_data)
     if errors:
         return render_form(form_data=form_data, errors=errors)
 
+    texto_formatado = build_formatted_text(form_data)
+
+    # Monta a linha da planilha:
+    # Coluna A = nome do projeto, B = cor, C = texto completo formatado
+    row = [
+        form_data["nome_projeto"],
+        form_data["cor_ficha"],
+        texto_formatado,
+    ]
+
     try:
-        append_to_sheet(build_sheet_row(form_data))
+        append_to_sheet(row)
     except Exception as exc:
         print("Erro ao salvar na planilha:", exc)
         traceback.print_exc()
         return render_form(
             form_data=form_data,
-            save_error="Não foi possível salvar na planilha agora. Os dados continuam no formulário para você tentar novamente.",
+            save_error="Não foi possível salvar na planilha agora. Os dados continuam no formulário para tentar novamente.",
         )
 
     return render_form(
         form_data=get_default_form_data(),
-        success_message="Informações salvas com sucesso na planilha.",
+        success_message="Informações salvas com sucesso na planilha!",
     )
 
 
