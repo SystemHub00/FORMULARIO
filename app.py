@@ -227,7 +227,6 @@ TEMPLATE_FORM = r'''
                     </div>
                     <div class="form-grid">
                         <div class="field"><label>Curso *</label><input type="text" name="turma_curso[]" maxlength="160" placeholder="Ex.: Designer de Unha" value="{{ turma.get('curso','') }}"></div>
-                        <div class="field"><label>Nome/código da turma *</label><input type="text" name="turma_nome[]" maxlength="160" placeholder="Ex.: Turma A" value="{{ turma.get('nome','') }}"></div>
                         <div class="field"><label>Local da turma *</label><input type="text" name="turma_local[]" maxlength="160" placeholder="Ex.: Polo Campo Grande — Sala 02" value="{{ turma.get('local','') }}"></div>
                         <div class="field"><label>Horário *</label><input type="text" name="turma_horario[]" maxlength="80" placeholder="Ex.: 9h30 às 11h30" value="{{ turma.get('horario','') }}"></div>
                         <div class="field"><label>Vagas *</label><input type="number" name="turma_vagas[]" min="1" max="9999" placeholder="Ex.: 30" value="{{ turma.get('vagas','') }}"></div>
@@ -278,7 +277,6 @@ const TURMA_TEMPLATE = `
   </div>
   <div class="form-grid">
     <div class="field"><label>Curso *</label><input type="text" name="turma_curso[]" maxlength="160" placeholder="Ex.: Designer de Unha"></div>
-    <div class="field"><label>Nome/código da turma *</label><input type="text" name="turma_nome[]" maxlength="160" placeholder="Ex.: Turma A"></div>
     <div class="field"><label>Local da turma *</label><input type="text" name="turma_local[]" maxlength="160" placeholder="Ex.: Polo Campo Grande — Sala 02"></div>
     <div class="field"><label>Horário *</label><input type="text" name="turma_horario[]" maxlength="80" placeholder="Ex.: 9h30 às 11h30"></div>
     <div class="field"><label>Vagas *</label><input type="number" name="turma_vagas[]" min="1" max="9999" placeholder="Ex.: 30"></div>
@@ -312,6 +310,15 @@ function removeItem(btn, type) {
     renumber();
 }
 
+function renumber() {
+    document.querySelectorAll('[data-local]').forEach((el, i) => {
+        el.querySelector('.turma-num').textContent = 'Local ' + (i+1);
+    });
+    document.querySelectorAll('[data-turma]').forEach((el, i) => {
+        el.querySelector('.turma-num').textContent = 'Turma ' + (i+1);
+    });
+}
+
 function previewLogo(event) {
     const input = event.target;
     const container = document.getElementById('logo-preview-container');
@@ -335,14 +342,6 @@ function previewLogo(event) {
         if (preview) preview.remove();
         if (placeholder) placeholder.style.display = '';
     }
-}
-
-    document.querySelectorAll('[data-local]').forEach((el, i) => {
-        el.querySelector('.turma-num').textContent = 'Local ' + (i+1);
-    });
-    document.querySelectorAll('[data-turma]').forEach((el, i) => {
-        el.querySelector('.turma-num').textContent = 'Turma ' + (i+1);
-    });
 }
 </script>
 </body>
@@ -430,7 +429,6 @@ def build_formatted_text(form_data):
 
         lines.append(f"###OPÇÃO {opcao}.{sub}")
 
-        nome_turma = turma.get("nome", "").strip()
         local = turma.get("local", "").strip()
         horario = turma.get("horario", "").strip()
         dias = turma.get("dias", "").strip()
@@ -439,8 +437,6 @@ def build_formatted_text(form_data):
         endereco = turma.get("endereco", "").strip()
         vagas = turma.get("vagas", "").strip()
 
-        if nome_turma:
-            lines.append(f"TURMA = {nome_turma}")
         if local:
             lines.append(f"LOCAL = {local.upper()}")
         if dias and horario:
@@ -490,7 +486,6 @@ def parse_lists_from_request(req):
         })
 
     t_cursos = req.form.getlist("turma_curso[]")
-    t_nomes = req.form.getlist("turma_nome[]")
     t_locais = req.form.getlist("turma_local[]")
     t_horarios = req.form.getlist("turma_horario[]")
     t_vagas = req.form.getlist("turma_vagas[]")
@@ -503,7 +498,6 @@ def parse_lists_from_request(req):
     for i in range(len(t_cursos)):
         turmas.append({
             "curso": t_cursos[i].strip() if i < len(t_cursos) else "",
-            "nome": t_nomes[i].strip() if i < len(t_nomes) else "",
             "local": t_locais[i].strip() if i < len(t_locais) else "",
             "horario": t_horarios[i].strip() if i < len(t_horarios) else "",
             "vagas": t_vagas[i].strip() if i < len(t_vagas) else "",
@@ -542,7 +536,7 @@ def validate(form_data):
     if not turmas:
         errors["turmas"] = "Adicione ao menos uma turma."
     for i, t in enumerate(turmas):
-        required = ["curso", "nome", "local", "horario", "vagas", "dias", "inicio", "encerramento", "endereco"]
+        required = ["curso", "local", "horario", "vagas", "dias", "inicio", "encerramento", "endereco"]
         missing = [f for f in required if not t.get(f)]
         if missing:
             errors["turmas"] = f"Preencha todos os campos da Turma {i+1}."
